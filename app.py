@@ -9,16 +9,12 @@ from db import (
     buscar_antibioticos_por_nombre
 )
 
-"""
-E-commerce farmacéutico con catálogo de medicamentos, validación de recetas, control de stock, 
-alertas de vencimiento e interacciones medicamentosas.
-"""
-
 app = Flask(__name__)
 
+# crear la tabla de antibióticos si no existe
 crear_tabla_antibioticos()
 
-# Para implementar mas adelante ;)
+# interfaces principales
 class Prescribible(ABC):
     @abstractmethod
     def requiere_receta(self) -> bool:
@@ -53,19 +49,20 @@ class Generico(ABC):
     @abstractmethod
     def get_bioequivalencia(self) -> str:
         pass
-    # VOy a hacer drogaaaaaa
+
     @abstractmethod
     def get_principio_activo(self) -> str:
         pass
 
-#Clase abstract para medicamento
+
+# la clase abstracta
 class Medicamento(ABC):
     def __init__(self, codigo, nombre_comercial, nombre_generico, laboratorio, vencimiento, lote, presentacion, precio, stock):
         self.codigo = codigo
         self.nombre_comercial = nombre_comercial
         self.nombre_generico = nombre_generico
         self.laboratorio = laboratorio
-        self.vencimiento = vencimiento
+        self.vencimiento = datetime.strptime(vencimiento, "%Y-%m-%d") if isinstance(vencimiento, str) else vencimiento
         self.lote = lote
         self.presentacion = presentacion
         self.precio = precio
@@ -83,7 +80,8 @@ class Medicamento(ABC):
     def get_info_completa(self) -> dict:
         pass
 
-# probemos primero con los antibioticos
+
+# Implementemos el antibiotico
 class Antibiotico(Medicamento, Prescribible):
     def __init__(self, codigo, nombre_comercial, nombre_generico, laboratorio, vencimiento, lote, presentacion, precio, stock, via_administracion):
         super().__init__(codigo, nombre_comercial, nombre_generico, laboratorio, vencimiento, lote, presentacion, precio, stock)
@@ -93,7 +91,7 @@ class Antibiotico(Medicamento, Prescribible):
         return True
 
     def validar_receta(self, receta: str) -> bool:
-        return len(receta) > 0
+        return bool(receta and receta.strip())
 
     def actualizar_stock(self, cantidad: int) -> bool:
         nuevo_stock = self.stock + cantidad
@@ -110,18 +108,38 @@ class Antibiotico(Medicamento, Prescribible):
             'tipo': 'Antibiótico',
             'codigo': self.codigo,
             'nombre_comercial': self.nombre_comercial,
+            'nombre_generico': self.nombre_generico,
+            'laboratorio': self.laboratorio,
+            'vencimiento': self.vencimiento.strftime("%Y-%m-%d"),
+            'lote': self.lote,
+            'presentacion': self.presentacion,
+            'precio': self.precio,
+            'stock': self.stock,
             'via_administracion': self.via_administracion
         }
 
-#cambiar mas adelante
+
+#intento de polimorfismo pa mostrar el inventario
+def mostrar_inventario(medicamentos: list[Medicamento]):
+    inventario = []
+    for m in medicamentos:
+        inventario.append(m.get_info_completa())
+    return inventario
+
 @app.route('/')
-def hello_world():
-    return 'Hello World!'
+def index():
+    return render_template("index.html")
 
 @app.route('/antibiotico')
 def listar_antibioticos():
-    antibioticos = obtener_todos_antibioticos()
-    return render_template('listar_antibioticos.html', antibioticos=antibioticos)
+    registros = obtener_todos_antibioticos()
+    antibioticos = [
+        Antibiotico(
+            r['codigo'], r['nombre_comercial'], r['nombre_generico'], r['laboratorio'],
+            r['vencimiento'], r['lote'], r['presentacion'], r['precio'], r['stock'], r['via_administracion']
+        ) for r in registros
+    ]
+    return render_template('listar_antibioticos.html', antibioticos=mostrar_inventario(antibioticos))
 
 @app.route('/antibiotico/nuevo', methods=['GET', 'POST'])
 def nuevo_antibiotico():
@@ -132,7 +150,7 @@ def nuevo_antibiotico():
                 'nombre_comercial': request.form['nombre_comercial'],
                 'nombre_generico': request.form['nombre_generico'],
                 'laboratorio': request.form['laboratorio'],
-                'vencimiento': request.form['vencimiento'],  # Formato: 'YYYY-MM-DD'
+                'vencimiento': request.form['vencimiento'],
                 'lote': request.form['lote'],
                 'presentacion': request.form['presentacion'],
                 'precio': float(request.form['precio']),
@@ -146,12 +164,18 @@ def nuevo_antibiotico():
 
     return render_template('nuevo_antibiotico.html')
 
-# Tampoco lo he usado pero ahi esta
 @app.route('/antibioticos/buscar')
 def buscar_antibioticos():
     nombre = request.args.get('nombre', '')
-    antibioticos = buscar_antibioticos_por_nombre(nombre)
-    return render_template('listar_antibioticos.html', antibioticos=antibioticos)
+    registros = buscar_antibioticos_por_nombre(nombre)
+    antibioticos = [
+        Antibiotico(
+            r['codigo'], r['nombre_comercial'], r['nombre_generico'], r['laboratorio'],
+            r['vencimiento'], r['lote'], r['presentacion'], r['precio'], r['stock'], r['via_administracion']
+        ) for r in registros
+    ]
+    return render_template('listar_antibioticos.html', antibioticos=mostrar_inventario(antibioticos))
+
 
 if __name__ == '__main__':
-    app.run()
+    app.run(debug=True)
