@@ -194,4 +194,4 @@ def buscar_antibioticos():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0') #el perro host pa q sirva en render
