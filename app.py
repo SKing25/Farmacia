@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime,timedelta
 from flask import Flask, request, render_template
 from abc import ABC, abstractmethod
 
@@ -128,7 +128,23 @@ def mostrar_inventario(medicamentos: list[Medicamento]):
 
 @app.route('/')
 def index():
-    return render_template("index.html")
+    registros = obtener_todos_antibioticos()
+    antibioticos = [
+        Antibiotico(
+            r['codigo'], r['nombre_comercial'], r['nombre_generico'], r['laboratorio'],
+            r['vencimiento'], r['lote'], r['presentacion'], r['precio'], r['stock'], r['via_administracion']
+        ) for r in registros
+    ]
+
+    alerta_stock = [a for a in antibioticos if a.stock < 5]
+
+    limite_vencimiento = datetime.now() + timedelta(days=30)
+    alerta_vencimiento = [a for a in antibioticos if a.vencimiento < limite_vencimiento and a.verificar_vencimiento()]
+    return render_template("index.html",
+                           alertas_stock=alerta_stock,
+                           alertas_vencimiento=alerta_vencimiento
+                           )
+
 
 @app.route('/antibiotico')
 def listar_antibioticos():
